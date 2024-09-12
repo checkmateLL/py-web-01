@@ -1,7 +1,105 @@
 from collections import UserDict
 from datetime import datetime, timedelta
+from abc import ABC, abstractmethod
 import re
 import pickle
+
+# Abstract base class for user interfaces
+class UserInterface(ABC):
+    @abstractmethod
+    def display_contacts(self, book):
+        pass
+
+    @abstractmethod
+    def display_commands(self):
+        pass
+
+    @abstractmethod
+    def get_user_input(self) -> str:
+        pass
+
+    @abstractmethod
+    def show_message(self, message: str):
+        pass
+
+    @abstractmethod
+    def add_contact_interface(self, book):
+        pass
+
+    @abstractmethod
+    def change_contact_interface(self, book):
+        pass
+
+    @abstractmethod
+    def show_phone_interface(self, book):
+        pass
+
+    @abstractmethod
+    def add_birthday_interface(self, book):
+        pass
+
+    @abstractmethod
+    def show_birthday_interface(self, book):
+        pass
+
+    @abstractmethod
+    def show_upcoming_birthdays_interface(self, book):
+        pass
+
+class ConsoleInterface(UserInterface):
+    def display_contacts(self, book):
+        for record in book.data.values():
+            print(str(record))
+
+    def display_commands(self):
+        commands = [
+            "add: Add a new contact",
+            "change: Change an existing contact's phone",
+            "phone: Show phone number of a contact",
+            "all: Show all contacts",
+            "add-birthday: Add birthday to a contact",
+            "show-birthday: Show birthday of a contact",
+            "birthdays: Show upcoming birthdays",
+            "hello: Greet the bot",
+            "close or exit: Exit the program"
+        ]
+        print("Available commands:")
+        for command in commands:
+            print(f"- {command}")
+
+    def get_user_input(self) -> str:
+        return input("Enter a command: ")
+
+    def show_message(self, message: str):
+        print(message)
+
+    def add_contact_interface(self, book):
+        name = input("Enter name: ")
+        phone = input("Enter phone: ")
+        return add_contact([name, phone], book)
+
+    def change_contact_interface(self, book):
+        name = input("Enter name: ")
+        old_phone = input("Enter old phone: ")
+        new_phone = input("Enter new phone: ")
+        return change_contact([name, old_phone, new_phone], book)
+
+    def show_phone_interface(self, book):
+        name = input("Enter name: ")
+        return show_phone([name], book)
+
+    def add_birthday_interface(self, book):
+        name = input("Enter name: ")
+        birthday = input("Enter birthday (DD.MM.YYYY): ")
+        return add_birthday([name, birthday], book)
+
+    def show_birthday_interface(self, book):
+        name = input("Enter name: ")
+        return show_birthday([name], book)
+
+    def show_upcoming_birthdays_interface(self, book):
+        return birthdays(book)
+
 
 class Field:
     def __init__(self, value):
@@ -11,8 +109,7 @@ class Field:
         return str(self.value)
 
 class Name(Field):
-    def __init__(self, value):
-        super().__init__(value)
+    pass
         
 
 class Phone(Field):
@@ -38,7 +135,7 @@ class Birthday(Field):
         except ValueError:
             return False   
 
-
+# Record class to store contact information
 class Record:
     def __init__(self, name):
         self.name = Name(name)
@@ -49,9 +146,7 @@ class Record:
         self.phones.append(Phone(phone_number))
 
     def remove_phone(self, phone_number):
-        for phone in self.phones:
-            if phone.value == phone_number:
-                self.phones.remove(phone)
+        self.phones = [phone for phone in self.phones if phone.value != phone_number]
 
     def edit_phone(self, old_phone, new_phone):
         for phone in self.phones:
@@ -70,7 +165,7 @@ class Record:
         self.birthday = Birthday(new_birthday)
             
     def __str__(self):
-        return f"Contact name: {self.name.value}, phones: {'; '.join(p.value for p in self.phones)}"
+        return f"Contact name: {self.name.value}, phone: {'; '.join(p.value for p in self.phones)}"
         
 
 class AddressBook(UserDict):
@@ -79,7 +174,7 @@ class AddressBook(UserDict):
     def add_record(self, record):
         self.data[record.name.value] = record
 
-    # Seaches for phone using name
+    # Searches for phone using name
     def find(self, name):
         return self.data.get(name, None)
 
@@ -116,6 +211,7 @@ class AddressBook(UserDict):
 
         return upcoming_birthdays
     
+# Decorator for error handling
 def input_error(func):
     def inner(*args, **kwargs):
         try:
@@ -205,15 +301,12 @@ def birthdays(book):
     else:
         return "No upcoming birthdays in the next week."
 
-def parse_input(user_input):
-    cmd, *args = re.findall(r'\S+', user_input)
-    cmd = cmd.strip().lower()
-    return cmd, args
-
+# Function to save address book
 def save_data(book, filename="addressbook.pkl"):
     with open(filename, "wb") as f:
         pickle.dump(book, f)
 
+# Function to load address book data
 def load_data(filename="addressbook.pkl"):
     try:
         with open(filename, "rb") as f:
@@ -221,35 +314,45 @@ def load_data(filename="addressbook.pkl"):
     except FileNotFoundError:
         return AddressBook()
 
+# Main function to run the address book bot
 def main():
     book = load_data()
+    interface = ConsoleInterface()
     print("Welcome to the assistant bot!")
     while True:
-        user_input = input("Enter a command: ")
-        command, args = parse_input(user_input)
+        command = interface.get_user_input()
+        command = command.lower().strip()
 
         if command in ["close", "exit"]:
-            print("Good bye!")
-            save_data(book) 
+            interface.show_message("Good bye!")
+            save_data(book)
             break
         elif command == "hello":
-            print("How can I help you?")
+            interface.show_message("How can I help you?")
         elif command == "add":
-            print(add_contact(args, book))
+            result = interface.add_contact_interface(book)
+            interface.show_message(result)
         elif command == "change":
-            print(change_contact(args, book))
+            result = interface.change_contact_interface(book)
+            interface.show_message(result)
         elif command == "phone":
-            print(show_phone(args, book))
+            result = interface.show_phone_interface(book)
+            interface.show_message(result)
         elif command == "all":
-            print(show_all(book))
+            interface.display_contacts(book)
         elif command == "add-birthday":
-            print(add_birthday(args, book))
+            result = interface.add_birthday_interface(book)
+            interface.show_message(result)
         elif command == "show-birthday":
-            print(show_birthday(args, book))
+            result = interface.show_birthday_interface(book)
+            interface.show_message(result)
         elif command == "birthdays":
-            print(birthdays(book))
+            result = interface.show_upcoming_birthdays_interface(book)
+            interface.show_message(result)
+        elif command == "help":
+            interface.display_commands()
         else:
-            print("Invalid command.")
+            interface.show_message("Invalid command.")
 
 if __name__ == "__main__":
     main()
